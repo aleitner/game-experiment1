@@ -24,10 +24,6 @@ const (
 
 var State *state
 
-var (
-	tilesImage *ebiten.Image
-)
-
 type state struct {
 	cameraX     int
 	cameraY     int
@@ -56,7 +52,8 @@ func init() {
 		log.Fatal(err)
 	}
 
-	tilesImage, _ = ebiten.NewImageFromImage(img, ebiten.FilterDefault)
+	sheets = make(map[string]*ebiten.Image)
+	sheets["tiles"], _ = ebiten.NewImageFromImage(img, ebiten.FilterDefault)
 }
 
 func update(screen *ebiten.Image) error {

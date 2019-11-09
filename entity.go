@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/hajimehoshi/ebiten"
 	"image"
 	"image/color"
@@ -17,20 +16,25 @@ const (
 )
 
 type Entity struct {
-	health             int
-	img                *ebiten.Image
-	w                  int
-	h                  int
-	x                  int
-	y                  int
-	v                  int
-	facing             Direction
-	isAttacking        bool
-	attackFrame        int
-	isTemporary        bool
-	temporaryFrames    int
-	maxTemporaryFrames int
-	disappearsOnHit    bool
+	img *ebiten.Image
+	currentActions map[string]*Action
+
+	tangible   bool
+	vulnerable bool
+	hurtbox    *Box
+	health     int
+	direction  Direction
+	speed      int
+
+	hitbox *Box
+
+	belongsTo *Entity
+}
+
+// Action keeps track of frames for an action
+type Action struct {
+	currentFrame int
+	endFrame     int
 }
 
 func NewPlayer(x, y int) *Entity {
@@ -44,11 +48,17 @@ func NewPlayer(x, y int) *Entity {
 	return &Entity{
 		health: 3,
 		img:    square,
-		x:      x,
-		y:      y,
-		v:      2,
-		w:      w,
-		h:      h,
+		speed:      2,
+		hurtbox: &Box {
+			x:      x,
+			y:      y,
+			w:      w,
+			h:      h,
+		},
+		direction: DOWN,
+		tangible: true,
+		vulnerable: true,
+		currentActions: make(map[string]*Action),
 	}
 }
 
@@ -59,48 +69,41 @@ func NewTile(x, y, id int, tileSheet *ebiten.Image) *Entity {
 
 	return &Entity{
 		img:    tileSheet.SubImage(image.Rect(sx, sy, sx+tileSize, sy+tileSize)).(*ebiten.Image),
-		x:      x,
-		y:      y,
 		health: 1,
-		w:      tileSize,
-		h:      tileSize,
-	}
-}
-
-func NewEntity(id, x, y, w, h int) *Entity {
-	square, _ := ebiten.NewImage(w, h, ebiten.FilterNearest)
-
-	// Fill the square with the white color
-	square.Fill(color.White)
-
-	return &Entity{
-		img: square,
-		x:   x,
-		y:   y,
-		w:   w,
-		h:   h,
+		hurtbox: &Box{
+			x: x,
+			y: y,
+			w: tileSize,
+			h: tileSize,
+		},
+		tangible: false,
+		vulnerable: false,
 	}
 }
 
 func (e *Entity) update(screen *ebiten.Image) error {
 
-	if e.isTemporary {
-		e.temporaryFrames++
-	}
-
-	if e.isAttacking {
-		fmt.Println("Attacking... Frame: ", e.attackFrame)
-		if e.attackFrame == 3 { // full animation
-			e.isAttacking = false
-			e.attackFrame = 0
+	for key, val := range e.currentActions {
+		if val.currentFrame == val.endFrame {
+			delete(e.currentActions, key)
 		} else {
-			e.attackFrame++
+			val.currentFrame++
 		}
 	}
 
+	//if e.isAttacking {
+	//	fmt.Println("Attacking... Frame: ", e.attackFrame)
+	//	if e.attackFrame == 3 { // full animation
+	//		e.isAttacking = false
+	//		e.attackFrame = 0
+	//	} else {
+	//		e.attackFrame++
+	//	}
+	//}
+
 	opts := &ebiten.DrawImageOptions{}
 
-	opts.GeoM.Translate(float64(e.x), float64(e.y))
+	opts.GeoM.Translate(float64(e.hurtbox.x), float64(e.hurtbox.y))
 
 	// Draw the square image to the screen with an empty option
 	screen.DrawImage(e.img, opts)
@@ -108,14 +111,9 @@ func (e *Entity) update(screen *ebiten.Image) error {
 	return nil
 }
 
-func (e *Entity) CollidesWith(e2 *Entity) bool {
 
-	c1 := e.y > e2.y+e2.h // e is above e2
-	c2 := e2.y > e.y+e.h  // e2 is above e
-	c3 := e2.x > e.x+e.w  // e2 is to the right of e
-	c4 := e.x > e2.x+e2.w // e is to the right of e2
-
-	return !c1 && !c2 && !c3 && !c4
+func (attacker *Entity) CollidesWith(e *Entity) bool {
+	return attacker.hitbox.CollidesWith(e.hurtbox)
 }
 
 func Swing(player *Entity) *Entity {
@@ -124,27 +122,27 @@ func Swing(player *Entity) *Entity {
 	var x int
 	var y int
 
-	switch player.facing {
+	switch player.direction {
 	case UP:
 		w = tileSize
 		h = tileSize / 2
-		x = player.x - ((w-player.w)/2 + 1)
-		y = player.y - h - 1
+		x = player.hurtbox.x - ((w-player.hurtbox.w)/2 + 1)
+		y = player.hurtbox.y - h - 1
 	case DOWN:
 		w = tileSize
 		h = tileSize / 2
-		x = player.x - ((w-player.w)/2 + 1)
-		y = player.y + player.h + 1
+		x = player.hurtbox.x - ((w-player.hurtbox.w)/2 + 1)
+		y = player.hurtbox.y + player.hurtbox.h + 1
 	case LEFT:
 		w = tileSize / 2
 		h = tileSize
-		x = player.x - w - 1
-		y = player.y - ((h - player.h) / 2)
+		x = player.hurtbox.x - w - 1
+		y = player.hurtbox.y - ((h - player.hurtbox.h) / 2)
 	case RIGHT:
 		w = tileSize / 2
 		h = tileSize
-		x = player.x + player.w + 1
-		y = player.y - ((h - player.h) / 2)
+		x = player.hurtbox.x + player.hurtbox.w + 1
+		y = player.hurtbox.y - ((h - player.hurtbox.h) / 2)
 	}
 
 	square, _ := ebiten.NewImage(w, h, ebiten.FilterNearest)
@@ -154,13 +152,15 @@ func Swing(player *Entity) *Entity {
 
 	return &Entity{
 		img:                square,
-		w:                  w,
-		h:                  h,
-		x:                  x,
-		y:                  y,
-		health:             1,
-		isAttacking:        true,
-		isTemporary:        true,
-		maxTemporaryFrames: 3,
+		hurtbox: &Box {
+			x:      x,
+			y:      y,
+			w:      w,
+			h:      h,
+		},
+		health: 1,
+		vulnerable: false,
+		tangible: true,
+		direction: player.direction,
 	}
 }

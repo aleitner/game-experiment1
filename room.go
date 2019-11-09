@@ -23,7 +23,7 @@ func NewRoom(player *Entity, bg, mg, fg []int) *Room {
 		if id == 0 {
 			continue
 		}
-		entity := NewTile((i%xNum)*tileSize, (i/xNum)*tileSize, id, tilesImage)
+		entity := NewTile((i%xNum)*tileSize, (i/xNum)*tileSize, id, sheets["tiles"])
 		room.entities = append(room.entities, entity)
 	}
 
@@ -38,54 +38,60 @@ func (r *Room) update(screen *ebiten.Image) error {
 	playerProposedMovement := &Movement{0, 0}
 
 	// When the "up arrow key" is pressed..
-	if ebiten.IsKeyPressed(ebiten.KeyUp) && !r.player.isAttacking {
-		r.player.facing = UP
-		playerProposedMovement.y -= r.player.v
+	if ebiten.IsKeyPressed(ebiten.KeyUp) && r.player.currentActions["attacking"] == nil {
+		r.player.direction = UP
+		playerProposedMovement.y -= r.player.speed
 	}
 	// When the "down arrow key" is pressed..
-	if ebiten.IsKeyPressed(ebiten.KeyDown) && !r.player.isAttacking {
-		r.player.facing = DOWN
-		playerProposedMovement.y += r.player.v
+	if ebiten.IsKeyPressed(ebiten.KeyDown) && r.player.currentActions["attacking"] == nil {
+		r.player.direction = DOWN
+		playerProposedMovement.y += r.player.speed
 	}
 	// When the "left arrow key" is pressed..
-	if ebiten.IsKeyPressed(ebiten.KeyLeft) && !r.player.isAttacking {
-		r.player.facing = LEFT
-		playerProposedMovement.x -= r.player.v
+	if ebiten.IsKeyPressed(ebiten.KeyLeft) && r.player.currentActions["attacking"] == nil {
+		r.player.direction = LEFT
+		playerProposedMovement.x -= r.player.speed
 	}
 	// When the "right arrow key" is pressed..
-	if ebiten.IsKeyPressed(ebiten.KeyRight) && !r.player.isAttacking {
-		r.player.facing = RIGHT
-		playerProposedMovement.x += r.player.v
+	if ebiten.IsKeyPressed(ebiten.KeyRight) && r.player.currentActions["attacking"] == nil {
+		r.player.direction = RIGHT
+		playerProposedMovement.x += r.player.speed
 	}
 
-	if ebiten.IsKeyPressed(ebiten.KeySpace) && !r.player.isAttacking {
-		r.player.isAttacking = true
+	if ebiten.IsKeyPressed(ebiten.KeySpace) && r.player.currentActions["attacking"] == nil {
+		r.player.currentActions["attacking"] = &Action{
+			currentFrame: 0,
+			endFrame:     4,
+		}
 		r.entities = append(r.entities, Swing(r.player))
 	}
 
-	r.player.x += playerProposedMovement.x
-	r.player.y += playerProposedMovement.y
+	r.player.hurtbox.x += playerProposedMovement.x
+	r.player.hurtbox.y += playerProposedMovement.y
 
 	// Remove entities with health of 0
-	entities := r.entities[:0]
-	for _, entity := range r.entities {
-		for _, entity2 := range r.entities {
-
-			if entity.CollidesWith(entity2) && entity.isAttacking {
-				entity2.health -= 1
-			}
-		}
-
-		if r.player.CollidesWith(entity) {
-			r.player.x -= playerProposedMovement.x
-			r.player.y -= playerProposedMovement.y
-		}
-
-		if entity.health > 0 || entity.temporaryFrames < entity.maxTemporaryFrames{
-			entities = append(entities, entity)
-		}
-	}
-	r.entities = entities
+	//entities := r.entities[:0]
+	//for _, entity := range r.entities {
+	//	if entity.hitbox == nil {
+	//		continue
+	//	}
+	//	for _, entity2 := range r.entities {
+	//
+	//		if entity.CollidesWith(entity2) {
+	//			entity2.health -= 1
+	//		}
+	//	}
+	//
+	//	if entity.CollidesWith(r.player) {
+	//		r.player.hurtbox.x -= playerProposedMovement.x
+	//		r.player.hurtbox.y -= playerProposedMovement.y
+	//	}
+	//
+	//	if entity.health > 0 {
+	//		entities = append(entities, entity)
+	//	}
+	//}
+	//r.entities = entities
 
 	for _, entity := range r.entities {
 		if err := entity.update(screen); err != nil {
@@ -119,7 +125,7 @@ func (r *Room) drawEnvironment(tiles []int, screen *ebiten.Image) error {
 
 		sx := (t % tileXNum) * tileSize
 		sy := (t / tileXNum) * tileSize
-		screen.DrawImage(tilesImage.SubImage(image.Rect(sx, sy, sx+tileSize, sy+tileSize)).(*ebiten.Image), op)
+		screen.DrawImage(sheets["tiles"].SubImage(image.Rect(sx, sy, sx+tileSize, sy+tileSize)).(*ebiten.Image), op)
 	}
 
 	return nil
