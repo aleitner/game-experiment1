@@ -16,8 +16,8 @@ const (
 )
 
 type Entity struct {
-	img *ebiten.Image
-	currentActions map[string]*Action
+	img            *ebiten.Image
+	currentActions map[string]*FrameSpan
 
 	tangible   bool
 	vulnerable bool
@@ -29,10 +29,12 @@ type Entity struct {
 	hitbox *Box
 
 	belongsTo *Entity
+
+	*FrameSpan
 }
 
-// Action keeps track of frames for an action
-type Action struct {
+// FrameSpan keeps track of frames for an action
+type FrameSpan struct {
 	currentFrame int
 	endFrame     int
 }
@@ -48,17 +50,17 @@ func NewPlayer(x, y int) *Entity {
 	return &Entity{
 		health: 3,
 		img:    square,
-		speed:      2,
-		hurtbox: &Box {
-			x:      x,
-			y:      y,
-			w:      w,
-			h:      h,
+		speed:  2,
+		hurtbox: &Box{
+			x: x,
+			y: y,
+			w: w,
+			h: h,
 		},
-		direction: DOWN,
-		tangible: true,
-		vulnerable: true,
-		currentActions: make(map[string]*Action),
+		direction:      DOWN,
+		tangible:       true,
+		vulnerable:     true,
+		currentActions: make(map[string]*FrameSpan),
 	}
 }
 
@@ -76,12 +78,15 @@ func NewTile(x, y, id int, tileSheet *ebiten.Image) *Entity {
 			w: tileSize,
 			h: tileSize,
 		},
-		tangible: false,
-		vulnerable: false,
+		tangible:   true,
+		vulnerable: true,
 	}
 }
 
 func (e *Entity) update(screen *ebiten.Image) error {
+	if e.FrameSpan != nil {
+		e.currentFrame++
+	}
 
 	for key, val := range e.currentActions {
 		if val.currentFrame == val.endFrame {
@@ -90,16 +95,6 @@ func (e *Entity) update(screen *ebiten.Image) error {
 			val.currentFrame++
 		}
 	}
-
-	//if e.isAttacking {
-	//	fmt.Println("Attacking... Frame: ", e.attackFrame)
-	//	if e.attackFrame == 3 { // full animation
-	//		e.isAttacking = false
-	//		e.attackFrame = 0
-	//	} else {
-	//		e.attackFrame++
-	//	}
-	//}
 
 	opts := &ebiten.DrawImageOptions{}
 
@@ -111,9 +106,20 @@ func (e *Entity) update(screen *ebiten.Image) error {
 	return nil
 }
 
+func (attacker *Entity) Hits(e *Entity) bool {
+	if attacker.hitbox == nil || e.hurtbox == nil || e.tangible == false {
+		return false
+	}
 
-func (attacker *Entity) CollidesWith(e *Entity) bool {
-	return attacker.hitbox.CollidesWith(e.hurtbox)
+	return attacker.hitbox.Touches(e.hurtbox)
+}
+
+func (e1 *Entity) Touches(e2 *Entity) bool {
+	if e2.tangible == false || e1.tangible == false {
+		return false
+	}
+
+	return e1.hurtbox.Touches(e2.hurtbox)
 }
 
 func Swing(player *Entity) *Entity {
@@ -150,17 +156,21 @@ func Swing(player *Entity) *Entity {
 	// Fill the square with the white color
 	square.Fill(color.RGBA{255, 0, 0, 255})
 
+	box := &Box{
+		x: x,
+		y: y,
+		w: w,
+		h: h,
+	}
 	return &Entity{
-		img:                square,
-		hurtbox: &Box {
-			x:      x,
-			y:      y,
-			w:      w,
-			h:      h,
-		},
-		health: 1,
+		img:        square,
+		hitbox:     box,
+		hurtbox:    box,
+		health:     1,
 		vulnerable: false,
-		tangible: true,
-		direction: player.direction,
+		tangible:   true,
+		direction:  player.direction,
+		belongsTo:  player,
+		FrameSpan:  &FrameSpan{currentFrame: 0, endFrame: 5},
 	}
 }

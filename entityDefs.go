@@ -7,10 +7,12 @@ var (
 )
 
 type animation struct {
-	tileIDs  []int
-	sheet    string
-	interval float32
-	loops    bool
+	tileIDs     []int
+	sheet       string
+	interval    float32
+	loops       bool
+	cancellable bool
+	combinable  bool
 }
 
 type definition struct {

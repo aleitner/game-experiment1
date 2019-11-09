@@ -59,9 +59,9 @@ func (r *Room) update(screen *ebiten.Image) error {
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeySpace) && r.player.currentActions["attacking"] == nil {
-		r.player.currentActions["attacking"] = &Action{
+		r.player.currentActions["attacking"] = &FrameSpan{
 			currentFrame: 0,
-			endFrame:     4,
+			endFrame:     5,
 		}
 		r.entities = append(r.entities, Swing(r.player))
 	}
@@ -70,28 +70,36 @@ func (r *Room) update(screen *ebiten.Image) error {
 	r.player.hurtbox.y += playerProposedMovement.y
 
 	// Remove entities with health of 0
-	//entities := r.entities[:0]
-	//for _, entity := range r.entities {
-	//	if entity.hitbox == nil {
-	//		continue
-	//	}
-	//	for _, entity2 := range r.entities {
-	//
-	//		if entity.CollidesWith(entity2) {
-	//			entity2.health -= 1
-	//		}
-	//	}
-	//
-	//	if entity.CollidesWith(r.player) {
-	//		r.player.hurtbox.x -= playerProposedMovement.x
-	//		r.player.hurtbox.y -= playerProposedMovement.y
-	//	}
-	//
-	//	if entity.health > 0 {
-	//		entities = append(entities, entity)
-	//	}
-	//}
-	//r.entities = entities
+	entities := r.entities[:0]
+	for _, entity := range r.entities {
+		for _, entity2 := range r.entities {
+			if entity.Hits(entity2) && entity2.vulnerable {
+				entity2.health--
+			}
+
+			if entity2.Hits(entity) && entity.vulnerable {
+				entity.health--
+			}
+		}
+
+		if r.player.Touches(entity) {
+			r.player.hurtbox.x -= playerProposedMovement.x
+			r.player.hurtbox.y -= playerProposedMovement.y
+		}
+
+		if r.player.Hits(entity) {
+			entity.health--
+		}
+
+		if entity.Hits(r.player) {
+			r.player.health--
+		}
+
+		if entity.health > 0 && ((entity.FrameSpan != nil && entity.currentFrame < entity.endFrame) || entity.FrameSpan == nil) {
+			entities = append(entities, entity)
+		}
+	}
+	r.entities = entities
 
 	for _, entity := range r.entities {
 		if err := entity.update(screen); err != nil {
